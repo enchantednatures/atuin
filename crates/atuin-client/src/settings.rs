@@ -3,6 +3,7 @@ use std::{
 };
 
 use atuin_common::record::HostId;
+use atuin_common::utils;
 use clap::ValueEnum;
 use config::{
     builder::DefaultState, Config, ConfigBuilder, Environment, File as ConfigFile, FileFormat,
@@ -330,6 +331,8 @@ pub struct Sync {
 #[derive(Clone, Debug, Deserialize, Default, Serialize)]
 pub struct Keys {
     pub scroll_exits: bool,
+    pub exit_past_line_start: bool,
+    pub accept_past_line_end: bool,
     pub prefix: String,
 }
 
@@ -743,7 +746,7 @@ impl Settings {
             .set_default("auto_sync", true)?
             .set_default("update_check", cfg!(feature = "check-update"))?
             .set_default("sync_address", "https://api.atuin.sh")?
-            .set_default("sync_frequency", "10m")?
+            .set_default("sync_frequency", "5m")?
             .set_default("search_mode", "fuzzy")?
             .set_default("filter_mode", None::<String>)?
             .set_default("style", "compact")?
@@ -777,6 +780,8 @@ impl Settings {
             .set_default("enter_accept", false)?
             .set_default("sync.records", true)?
             .set_default("keys.scroll_exits", true)?
+            .set_default("keys.accept_past_line_end", true)?
+            .set_default("keys.exit_past_line_start", true)?
             .set_default("keys.prefix", "a")?
             .set_default("keymap_mode", "emacs")?
             .set_default("keymap_mode_shell", "auto")?
@@ -848,23 +853,32 @@ impl Settings {
             .map_err(|e| eyre!("failed to deserialize: {}", e))?;
 
         // all paths should be expanded
-        let db_path = settings.db_path;
-        let db_path = shellexpand::full(&db_path)?;
-        settings.db_path = db_path.to_string();
-
-        let key_path = settings.key_path;
-        let key_path = shellexpand::full(&key_path)?;
-        settings.key_path = key_path.to_string();
-
-        let session_path = settings.session_path;
-        let session_path = shellexpand::full(&session_path)?;
-        settings.session_path = session_path.to_string();
+        settings.db_path = Self::expand_path(settings.db_path)?;
+        settings.record_store_path = Self::expand_path(settings.record_store_path)?;
+        settings.key_path = Self::expand_path(settings.key_path)?;
+        settings.session_path = Self::expand_path(settings.session_path)?;
 
         Ok(settings)
     }
 
+    fn expand_path(path: String) -> Result<String> {
+        shellexpand::full(&path)
+            .map(|p| p.to_string())
+            .map_err(|e| eyre!("failed to expand path: {}", e))
+    }
+
     pub fn example_config() -> &'static str {
         EXAMPLE_CONFIG
+    }
+
+    pub fn paths_ok(&self) -> bool {
+        let paths = [
+            &self.db_path,
+            &self.record_store_path,
+            &self.key_path,
+            &self.session_path,
+        ];
+        paths.iter().all(|p| !utils::broken_symlink(p))
     }
 }
 

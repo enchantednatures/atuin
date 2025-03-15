@@ -113,6 +113,11 @@ pub fn get_current_dir() -> String {
     }
 }
 
+pub fn broken_symlink<P: Into<PathBuf>>(path: P) -> bool {
+    let path = path.into();
+    path.is_symlink() && !path.exists()
+}
+
 pub fn is_zsh() -> bool {
     // only set on zsh
     env::var("ATUIN_SHELL_ZSH").is_ok()
@@ -146,7 +151,7 @@ pub trait Escapable: AsRef<str> {
         } else {
             let mut remaining = self.as_ref();
             // Not a perfect way to reserve space but should reduce the allocations
-            let mut buf = String::with_capacity(remaining.as_bytes().len());
+            let mut buf = String::with_capacity(remaining.len());
             while let Some(i) = remaining.find(|c: char| c.is_ascii_control()) {
                 // safe to index with `..i`, `i` and `i+1..` as part[i] is a single byte ascii char
                 buf.push_str(&remaining[..i]);

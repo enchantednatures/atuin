@@ -224,10 +224,12 @@ impl State {
             KeyCode::Esc if esc_allow_exit => Some(Self::handle_key_exit(settings)),
             KeyCode::Char('[') if ctrl && esc_allow_exit => Some(Self::handle_key_exit(settings)),
             KeyCode::Tab => Some(InputAction::Accept(self.results_state.selected())),
-            KeyCode::Right if cursor_at_end_of_line => {
+            KeyCode::Right if cursor_at_end_of_line && settings.keys.accept_past_line_end => {
                 Some(InputAction::Accept(self.results_state.selected()))
             }
-            KeyCode::Left if cursor_at_start_of_line => Some(Self::handle_key_exit(settings)),
+            KeyCode::Left if cursor_at_start_of_line && settings.keys.exit_past_line_start => {
+                Some(Self::handle_key_exit(settings))
+            }
             KeyCode::Char('o') if ctrl => {
                 self.tab_index = (self.tab_index + 1) % TAB_TITLES.len();
                 Some(InputAction::Continue)
@@ -415,6 +417,7 @@ impl State {
             KeyCode::Right => self.search.input.right(),
             KeyCode::Char('f') if ctrl => self.search.input.right(),
             KeyCode::Home => self.search.input.start(),
+            KeyCode::Char('a') if ctrl => self.search.input.start(),
             KeyCode::Char('e') if ctrl => self.search.input.end(),
             KeyCode::End => self.search.input.end(),
             KeyCode::Backspace if ctrl => self
@@ -538,8 +541,27 @@ impl State {
             && !results.is_empty()
         {
             let length_current_cmd = results[selected].command.len() as u16;
+            // calculate the number of newlines in the command
+            let num_newlines = results[selected]
+                .command
+                .chars()
+                .filter(|&c| c == '\n')
+                .count() as u16;
+            if num_newlines > 0 {
+                std::cmp::min(
+                    settings.max_preview_height,
+                    results[selected]
+                        .command
+                        .split('\n')
+                        .map(|line| {
+                            (line.len() as u16 + preview_width - 1 - border_size)
+                                / (preview_width - border_size)
+                        })
+                        .sum(),
+                ) + border_size * 2
+            }
             // The '- 19' takes the characters before the command (duration and time) into account
-            if length_current_cmd > preview_width - 19 {
+            else if length_current_cmd > preview_width - 19 {
                 std::cmp::min(
                     settings.max_preview_height,
                     (length_current_cmd + preview_width - 1 - border_size)
@@ -1116,6 +1138,9 @@ pub async fn history(
                         match app.handle_input(settings, &event::read()?, &mut std::io::stdout())? {
                             InputAction::Continue => {},
                             InputAction::Delete(index) => {
+                                if results.is_empty() {
+                                    break;
+                                }
                                 app.results_len -= 1;
                                 let selected = app.results_state.selected();
                                 if selected == app.results_len {

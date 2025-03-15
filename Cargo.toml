@@ -5,9 +5,9 @@ resolver = "2"
 exclude = ["ui/backend"]
 
 [workspace.package]
-version = "18.4.0"
+version = "18.5.0-beta.1"
 authors = ["Ellie Huxtable <ellie@atuin.sh>"]
-rust-version = "1.82"
+rust-version = "1.85"
 license = "MIT"
 homepage = "https://atuin.sh"
 repository = "https://github.com/atuinsh/atuin"
@@ -23,7 +23,7 @@ time = { version = "0.3.36", features = [
   "local-offset",
 ] }
 clap = { version = "4.5.7", features = ["derive"] }
-config = { version = "0.13", default-features = false, features = ["toml"] }
+config = { version = "0.15.8", default-features = false, features = ["toml"] }
 directories = "5.0.1"
 eyre = "0.6"
 fs-err = "2.9"
